@@ -55,7 +55,7 @@ capabilities:
 {% endfor %}
 {% endif %}
 {% endif %}
-pullSecret: {{ pull_secret | to_json }}
+pullSecret: '{{ pull_secret | to_json }}'
 sshKey: {{ lookup('file', ssh_public_key_file) | to_json }}
 {% if use_bastion_registry | default(false) %}
 imageDigestSources:

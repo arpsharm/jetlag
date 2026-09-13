@@ -2,6 +2,7 @@
 # generate-agent-config default vars
 
 http_store_path: /opt/jetlag/http_store
+ocp_version_path: /opt/jetlag/ocp-version
 
 registry_host: "{{ groups['bastion'][0] }}"
 registry_port: 5000

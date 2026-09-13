@@ -1,0 +1,20 @@
+---
+# generate-agent-config default vars
+
+http_store_path: /opt/jetlag/http_store
+
+registry_host: "{{ groups['bastion'][0] }}"
+registry_port: 5000
+registry_path: /opt/jetlag/registry
+
+# Manifest for KubeletConfig to adjust max pods
+kubelet_config: false
+kubelet_config_max_pods: 530
+kubelet_config_max_pods_label: "pools.operator.machineconfiguration.openshift.io/worker: ''"
+
+# Manifest for MachineConfig to enable kdump on master nodes
+kdump_master_config: false
+
+# Enable applying the below maxconn tuning override during cluster creation
+override_kni_infra_haproxy: false
+openshift_kni_infra_haproxy_maxconn: 40000

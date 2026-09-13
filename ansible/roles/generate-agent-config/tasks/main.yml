@@ -1,0 +1,127 @@
+---
+# generate-agent-config tasks
+# Generates install-config.yaml and agent-config.yaml, then creates the agent ISO
+
+- name: Set ABI install directory
+  set_fact:
+    abi_install_dir: "{{ bastion_cluster_config_dir }}/abi-install"
+
+- name: Clean previous ABI install directory
+  file:
+    path: "{{ abi_install_dir }}"
+    state: absent
+
+- name: Create ABI install directory
+  file:
+    path: "{{ abi_install_dir }}"
+    state: directory
+
+- name: Obtain bastion registry certificate
+  slurp:
+    src: "{{ registry_path }}/certs/domain.crt"
+  register: mirror_cert
+  when: use_bastion_registry | default(false)
+
+- name: Template install-config.yaml
+  template:
+    src: install-config.yaml.j2
+    dest: "{{ abi_install_dir }}/install-config.yaml"
+
+- name: Template agent-config.yaml
+  template:
+    src: agent-config.yaml.j2
+    dest: "{{ abi_install_dir }}/agent-config.yaml"
+
+- name: Display generated install-config.yaml
+  debug:
+    msg: "{{ lookup('file', abi_install_dir + '/install-config.yaml') }}"
+    verbosity: 1
+
+- name: Display generated agent-config.yaml
+  debug:
+    msg: "{{ lookup('file', abi_install_dir + '/agent-config.yaml') }}"
+    verbosity: 1
+
+- name: Create openshift manifests directory
+  file:
+    path: "{{ abi_install_dir }}/openshift"
+    state: directory
+
+- name: Add manifest to disable lab DHCP interface on controlplane nodes
+  copy:
+    content: "{{ lookup('template', '../../create-ai-cluster/templates/' + item.template_name) }}"
+    dest: "{{ abi_install_dir }}/openshift/{{ item.file_name }}"
+  loop:
+  - file_name: 50-controlplane-disable-lab-dhcp-interface.yaml
+    template_name: 50-controlplane-disable-lab-dhcp-interface.yml.j2
+  - file_name: 50-worker-disable-lab-dhcp-interface.yaml
+    template_name: 50-worker-disable-lab-dhcp-interface.yml.j2
+  when:
+  - lab in rh_labs or lab == "byol"
+
+- name: Add optional MNO manifests
+  copy:
+    content: "{{ lookup('template', '../../create-ai-cluster/templates/' + item.template_name) }}"
+    dest: "{{ abi_install_dir }}/openshift/{{ item.file_name }}"
+  loop:
+  - file_name: 50-controlplane-tune-kni-haproxy.yaml
+    template_name: 50-controlplane-tune-kni-haproxy.yml.j2
+    enabled: "{{ override_kni_infra_haproxy }}"
+  - file_name: kubeletconfig-max-pods.yml
+    template_name: kubeletconfig-max-pods.yml
+    enabled: "{{ kubelet_config }}"
+  - file_name: 06-kdump-master.yaml
+    template_name: 06-kdump-master.yaml
+    enabled: "{{ kdump_master_config }}"
+  - file_name: 99-disconnected-dns-workaround.yml
+    template_name: 99-disconnected-dns-workaround.yml
+    enabled: "{{ use_bastion_registry }}"
+  when: item.enabled | default(true) | bool
+
+- name: Add entries in /etc/hosts
+  blockinfile:
+    path: "/etc/hosts"
+    backup: true
+    block: |
+      {{ controlplane_network[0] | ansible.utils.nthhost(3) }} api.{{ cluster_name }}.{{ base_dns_name }}
+      {{ controlplane_network[0] | ansible.utils.nthhost(3) }} api-int.{{ cluster_name }}.{{ base_dns_name }}
+      {% for route in etc_hosts_ingress_routes %}
+      {{ controlplane_network[0] | ansible.utils.nthhost(4) }} {{ route }}.apps.{{ cluster_name }}.{{ base_dns_name }}
+      {% endfor %}
+    insertafter: "EOF"
+    marker: "# {mark} {{ cluster_name }} OCP CLUSTER MANAGED BLOCK"
+
+- name: Restart dnsmasq after /etc/hosts update
+  systemd:
+    state: restarted
+    name: dnsmasq
+  when:
+  - controlplane_bastion_as_dns
+  - not setup_coredns
+
+- name: Generate agent ISO
+  shell: |
+    {{ ocp_version_path }}/openshift-install agent create image --dir {{ abi_install_dir }} --log-level info
+  register: agent_iso_result
+
+- name: Display agent ISO creation output
+  debug:
+    msg: "{{ agent_iso_result.stderr_lines }}"
+
+- name: Create ISO directory in HTTP store
+  file:
+    path: "{{ http_store_path }}/data/iso"
+    state: directory
+
+- name: Copy agent ISO to HTTP store
+  copy:
+    src: "{{ abi_install_dir }}/agent.x86_64.iso"
+    dest: "{{ http_store_path }}/data/discovery.iso"
+    remote_src: true
+    mode: "0644"
+
+- name: Symlink agent ISO into iso subdirectory
+  file:
+    src: ../discovery.iso
+    dest: "{{ http_store_path }}/data/iso/discovery.iso"
+    state: link

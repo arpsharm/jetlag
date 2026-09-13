@@ -1,0 +1,6 @@
+---
+# wait-agent-install default vars
+
+# Timeout for openshift-install agent wait-for commands (minutes)
+agent_wait_for_bootstrap_timeout: 30
+agent_wait_for_install_timeout: 60

@@ -1,0 +1,47 @@
+---
+# wait-agent-install tasks
+# Waits for the ABI install to complete and copies credentials
+
+- name: Set ABI install directory
+  set_fact:
+    abi_install_dir: "{{ bastion_cluster_config_dir }}/abi-install"
+
+- name: Wait for bootstrap to complete
+  shell: |
+    {{ ocp_version_path }}/openshift-install agent wait-for bootstrap-complete --dir {{ abi_install_dir }} --log-level info
+  register: bootstrap_result
+  async: "{{ agent_wait_for_bootstrap_timeout | int * 60 }}"
+  poll: 30
+
+- name: Display bootstrap completion output
+  debug:
+    msg: "{{ bootstrap_result.stderr_lines | default([]) }}"
+
+- name: Wait for install to complete
+  shell: |
+    {{ ocp_version_path }}/openshift-install agent wait-for install-complete --dir {{ abi_install_dir }} --log-level info
+  register: install_result
+  async: "{{ agent_wait_for_install_timeout | int * 60 }}"
+  poll: 30
+
+- name: Display install completion output
+  debug:
+    msg: "{{ install_result.stderr_lines | default([]) }}"
+
+- name: Copy kubeconfig to cluster config directory
+  copy:
+    src: "{{ abi_install_dir }}/auth/kubeconfig"
+    dest: "{{ bastion_cluster_config_dir }}/kubeconfig"
+    remote_src: true
+
+- name: Copy kubeconfig backup
+  copy:
+    src: "{{ abi_install_dir }}/auth/kubeconfig"
+    dest: "{{ bastion_cluster_config_dir }}/kubeconfig.backup"
+    remote_src: true
+
+- name: Copy kubeadmin password
+  copy:
+    src: "{{ abi_install_dir }}/auth/kubeadmin-password"
+    dest: "{{ bastion_cluster_config_dir }}/kubeadmin-password"
+    remote_src: true

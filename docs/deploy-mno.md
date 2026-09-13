@@ -13,6 +13,8 @@ _**Table of Contents**_
   - [Extra vars](#extra-vars)
 - [Review vars `all.yml`](#review-vars-allyml)
 - [Run playbooks](#run-playbooks)
+  - [Option A — Agent-Based Installer (recommended)](#option-a--agent-based-installer-recommended--40-50-min)
+  - [Option B — Assisted Installer (original)](#option-b--assisted-installer-original--60-70-min)
 - [Monitor install and interact with cluster](#monitor-install-and-interact-with-cluster)
 <!-- /TOC -->
 
@@ -400,7 +402,20 @@ Next run the `setup-bastion.yml` playbook ...
 ...
 ```
 
-Finally run the `mno-deploy.yml` playbook ...
+Finally run the deploy playbook. You have two options:
+
+**Option A — Agent-Based Installer (recommended, ~40-50 min)**
+
+The Agent-Based Installer (ABI) generates a single bootable ISO that embeds the assisted service directly. No on-prem Assisted Installer pod is needed. This is faster because it eliminates the node discovery wait and the bastion AI service overhead.
+
+```console
+(.ansible) [root@<bastion> jetlag]# ansible-playbook -i ansible/inventory/cloud99.local ansible/mno-deploy-abi.yml
+...
+```
+
+**Option B — Assisted Installer (original, ~60-70 min)**
+
+The original deploy path uses the on-prem Assisted Installer service running on the bastion.
 
 ```console
 (.ansible) [root@<bastion> jetlag]# ansible-playbook -i ansible/inventory/cloud99.local ansible/mno-deploy.yml
@@ -409,9 +424,13 @@ Finally run the `mno-deploy.yml` playbook ...
 
 ## Monitor install and interact with cluster
 
-It is suggested to monitor your first deployment to see if anything hangs on boot or if the virtual media is incorrect according to the bmc. You can monitor your deployment by opening the bastion's GUI to assisted-installer (port 8080, ex `xxx-h01-000-r650.example.com:8080`), opening the consoles via the bmc of each system, and once the machines are booted, you can directly ssh to them and tail log files.
+For ABI deployments, monitor the install by watching the `openshift-install` log output or by SSHing to the rendezvous node (the first control-plane host) and running `journalctl -f`. You can also open the BMC consoles of each system to watch boot progress.
 
-If everything goes well you should have a cluster in about 60-70 minutes. You can interact with the cluster from the bastion via the kubeconfig or kubeadmin password.
+For Assisted Installer deployments, you can additionally open the bastion's GUI to assisted-installer (port 8080, ex `xxx-h01-000-r650.example.com:8080`).
+
+Once the machines are booted, you can directly ssh to them and tail log files.
+
+If everything goes well you should have a cluster in about 40-70 minutes depending on the deploy method. You can interact with the cluster from the bastion via the kubeconfig or kubeadmin password.
 
 ```console
 (.ansible) [root@<bastion> jetlag]# export KUBECONFIG=/root/mno/kubeconfig

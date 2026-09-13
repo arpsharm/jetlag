@@ -1,0 +1,39 @@
+---
+# Deploy a multi node cluster with the Agent-Based Installer (ABI)
+#
+# Faster alternative to mno-deploy.yml — skips the on-prem Assisted Installer
+# service entirely. Generates a single bootable agent ISO that embeds the
+# assisted service, boots nodes via BMC virtual media, and waits for install.
+#
+# Uses the same all.yml configuration as the standard MNO deploy.
+# Requires setup-bastion.yml to have been run first (for DNS and HTTP).
+#
+# Example Usage:
+#
+# ansible-playbook -i ansible/inventory/cloud42.local ansible/mno-deploy-abi.yml
+#
+
+- name: Deploy a multi node cluster with the Agent-Based Installer
+  hosts: bastion
+  vars_files:
+  - vars/lab.yml
+  - vars/all.yml
+  pre_tasks:
+  - name: Validate deploying MNO
+    fail:
+      msg: "cluster_type is not 'mno' or 'vmno'"
+    when: cluster_type != "mno" and cluster_type != "vmno"
+  roles:
+  - validate-vars
+  - ocp-release
+  - generate-agent-config
+  - role: boot-iso
+    vars:
+      inventory_group: controlplane
+      index: 3
+  - role: boot-iso
+    vars:
+      inventory_group: worker
+      index: "{{ worker_node_count|int + (hybrid_worker_count | default(0)) }}"
+  - wait-agent-install
+  - mno-post-cluster-install

@@ -37,7 +37,10 @@ ansible-playbook -i ansible/inventory/ibmcloud.local ansible/ibmcloud-setup-bast
 ### Cluster Deployment
 ```bash
 # Red Hat Labs (Scale Lab/Performance Lab)
-# Deploy Multi Node OpenShift cluster
+# Deploy Multi Node OpenShift cluster (Agent-Based Installer - faster, recommended)
+ansible-playbook -i ansible/inventory/cloud99.local ansible/mno-deploy-abi.yml
+
+# Deploy Multi Node OpenShift cluster (Assisted Installer - original)
 ansible-playbook -i ansible/inventory/cloud99.local ansible/mno-deploy.yml
 
 # Deploy Single Node OpenShift clusters

@@ -1,0 +1,139 @@
+apiVersion: v1beta1
+metadata:
+  name: {{ cluster_name }}
+rendezvousIP: {{ hostvars[groups['controlplane'][0]]['ip'] }}
+additionalNTPSources:
+- {{ controlplane_network[0] | ansible.utils.nthhost(1) if (lab in cloud_labs) or use_bastion_registry or setup_bastion_proxy | default(false) else labs[lab]['ntp_server'] }}
+hosts:
+{% for host in groups['controlplane'] %}
+- hostname: {{ host }}
+  role: master
+  rootDeviceHints:
+    deviceName: {{ hostvars[host]['install_disk'] }}
+  interfaces:
+  - name: {{ hostvars[host]['network_interface'] }}
+    macAddress: {{ hostvars[host]['mac_address'] }}
+  networkConfig:
+    interfaces:
+    - name: {{ hostvars[host]['network_interface'] }}
+      type: ethernet
+      state: up
+{% if hostvars[host]['ip'] | ansible.utils.ipv4 %}
+      ipv4:
+        address:
+        - ip: {{ hostvars[host]['ip'] }}
+          prefix-length: {{ hostvars[host]['network_prefix'] }}
+        auto-dns: false
+        enabled: true
+{% endif %}
+{% if 'ipv6' in hostvars[host] or hostvars[host]['ip'] | ansible.utils.ipv6 %}
+      ipv6:
+        address:
+{% if 'ipv6' in hostvars[host] %}
+        - ip: {{ hostvars[host]['ipv6'] }}
+          prefix-length: {{ hostvars[host]['ipv6_prefix'] }}
+{% elif hostvars[host]['ip'] | ansible.utils.ipv6 %}
+        - ip: {{ hostvars[host]['ip'] }}
+          prefix-length: {{ hostvars[host]['network_prefix'] }}
+{% endif %}
+        auto-dns: false
+        enabled: true
+{% endif %}
+{% if 'lab_mac' in hostvars[host] %}
+    - name: {{ hostvars[host]['lab_interface'] }}
+      type: ethernet
+      state: up
+      ipv4:
+        auto-dns: false
+        enabled: false
+{% endif %}
+    dns-resolver:
+      config:
+        server:
+        - {{ hostvars[host]['dns1'] }}
+{% if 'dns2' in hostvars[host] %}
+        - {{ hostvars[host]['dns2'] }}
+{% endif %}
+    routes:
+      config:
+{% if hostvars[host]['ip'] | ansible.utils.ipv4 %}
+      - destination: 0.0.0.0/0
+        next-hop-address: {{ hostvars[host]['gateway'] }}
+        next-hop-interface: {{ hostvars[host]['network_interface'] }}
+{% endif %}
+{% if 'ipv6' in hostvars[host] %}
+      - destination: ::/0
+        next-hop-address: {{ hostvars[host]['ipv6_gateway'] }}
+        next-hop-interface: {{ hostvars[host]['network_interface'] }}
+{% elif hostvars[host]['ip'] | ansible.utils.ipv6 %}
+      - destination: ::/0
+        next-hop-address: {{ hostvars[host]['gateway'] }}
+        next-hop-interface: {{ hostvars[host]['network_interface'] }}
+{% endif %}
+{% endfor %}
+{% for host in groups['worker'][:worker_node_count | int + (hybrid_worker_count | default(0) | int)] %}
+- hostname: {{ host }}
+  role: worker
+  rootDeviceHints:
+    deviceName: {{ hostvars[host]['install_disk'] }}
+  interfaces:
+  - name: {{ hostvars[host]['network_interface'] }}
+    macAddress: {{ hostvars[host]['mac_address'] }}
+  networkConfig:
+    interfaces:
+    - name: {{ hostvars[host]['network_interface'] }}
+      type: ethernet
+      state: up
+{% if hostvars[host]['ip'] | ansible.utils.ipv4 %}
+      ipv4:
+        address:
+        - ip: {{ hostvars[host]['ip'] }}
+          prefix-length: {{ hostvars[host]['network_prefix'] }}
+        auto-dns: false
+        enabled: true
+{% endif %}
+{% if 'ipv6' in hostvars[host] or hostvars[host]['ip'] | ansible.utils.ipv6 %}
+      ipv6:
+        address:
+{% if 'ipv6' in hostvars[host] %}
+        - ip: {{ hostvars[host]['ipv6'] }}
+          prefix-length: {{ hostvars[host]['ipv6_prefix'] }}
+{% elif hostvars[host]['ip'] | ansible.utils.ipv6 %}
+        - ip: {{ hostvars[host]['ip'] }}
+          prefix-length: {{ hostvars[host]['network_prefix'] }}
+{% endif %}
+        auto-dns: false
+        enabled: true
+{% endif %}
+{% if 'lab_mac' in hostvars[host] %}
+    - name: {{ hostvars[host]['lab_interface'] }}
+      type: ethernet
+      state: up
+      ipv4:
+        auto-dns: false
+        enabled: false
+{% endif %}
+    dns-resolver:
+      config:
+        server:
+        - {{ hostvars[host]['dns1'] }}
+{% if 'dns2' in hostvars[host] %}
+        - {{ hostvars[host]['dns2'] }}
+{% endif %}
+    routes:
+      config:
+{% if hostvars[host]['ip'] | ansible.utils.ipv4 %}
+      - destination: 0.0.0.0/0
+        next-hop-address: {{ hostvars[host]['gateway'] }}
+        next-hop-interface: {{ hostvars[host]['network_interface'] }}
+{% endif %}
+{% if 'ipv6' in hostvars[host] %}
+      - destination: ::/0
+        next-hop-address: {{ hostvars[host]['ipv6_gateway'] }}
+        next-hop-interface: {{ hostvars[host]['network_interface'] }}
+{% elif hostvars[host]['ip'] | ansible.utils.ipv6 %}
+      - destination: ::/0
+        next-hop-address: {{ hostvars[host]['gateway'] }}
+        next-hop-interface: {{ hostvars[host]['network_interface'] }}
+{% endif %}
+{% endfor %}

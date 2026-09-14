@@ -99,7 +99,18 @@
   - controlplane_bastion_as_dns
   - not setup_coredns
 
-- name: Generate agent ISO
+- name: Generate agent cluster manifests
+  shell: |
+    {{ ocp_version_path }}/openshift-install agent create cluster-manifests --dir {{ abi_install_dir }} --log-level info
+
+- name: Fix workerAgents count for compact cluster
+  replace:
+    path: "{{ abi_install_dir }}/cluster-manifests/agent-cluster-install.yaml"
+    regexp: 'workerAgents: \d+'
+    replace: 'workerAgents: 0'
+  when: (worker_node_count | int + (hybrid_worker_count | default(0) | int)) == 0
+
+- name: Generate agent ISO from manifests
   shell: |
     {{ ocp_version_path }}/openshift-install agent create image --dir {{ abi_install_dir }} --log-level info
   register: agent_iso_result
